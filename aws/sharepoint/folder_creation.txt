@@ -1,0 +1,269 @@
+
+1. SharePointService class (unchanged):
+
+```java
+import com.fasterxml.jackson.databind.ObjectMapper;
+
+import java.net.URI;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
+import java.util.Map;
+
+public class SharePointService {
+
+    private static final String SHAREPOINT_SITE_URL = "https://your-sharepoint-site.com";
+    private static final String SHAREPOINT_API_URL = SHAREPOINT_SITE_URL + "/_api/web";
+    private static final String TOKEN_URL = "https://your-auth-provider.com/token";
+    private static final String CLIENT_ID = "your_client_id";
+    private static final String CLIENT_SECRET = "your_client_secret";
+    private static final String RESOURCE = "your_resource";
+
+    private final HttpClient httpClient;
+    private final ObjectMapper objectMapper;
+
+    public SharePointService() {
+        this.httpClient = HttpClient.newHttpClient();
+        this.objectMapper = new ObjectMapper();
+    }
+
+    public void createFolderHierarchy(String folderPath) throws Exception {
+        String bearerToken = getBearerToken();
+        String formDigest = getFormDigestValue(bearerToken);
+        String[] folders = folderPath.split("/");
+        String currentPath = "";
+
+        for (String folder : folders) {
+            currentPath += "/" + folder;
+            createFolder(currentPath, formDigest, bearerToken);
+        }
+    }
+
+    private String getBearerToken() throws Exception {
+        String requestBody = "grant_type=client_credentials&client_id=" + CLIENT_ID + "&client_secret=" + CLIENT_SECRET + "&resource=" + RESOURCE;
+
+        HttpRequest request = HttpRequest.newBuilder()
+                .uri(URI.create(TOKEN_URL))
+                .header("Content-Type", "application/x-www-form-urlencoded")
+                .POST(HttpRequest.BodyPublishers.ofString(requestBody))
+                .build();
+
+        HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+        Map<String, Object> responseMap = objectMapper.readValue(response.body(), Map.class);
+        return (String) responseMap.get("access_token");
+    }
+
+    private String getFormDigestValue(String bearerToken) throws Exception {
+        HttpRequest request = HttpRequest.newBuilder()
+                .uri(URI.create(SHAREPOINT_API_URL + "/contextinfo"))
+                .header("Accept", "application/json;odata=verbose")
+                .header("Authorization", "Bearer " + bearerToken)
+                .POST(HttpRequest.BodyPublishers.noBody())
+                .build();
+
+        HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+        Map<String, Object> responseMap = objectMapper.readValue(response.body(), Map.class);
+        return (String) ((Map<String, Object>) responseMap.get("d")).get("GetContextWebInformation").get("FormDigestValue");
+    }
+
+    private void createFolder(String folderPath, String formDigest, String bearerToken) throws Exception {
+        String jsonBody = "{" +
+                "'__metadata': { 'type': 'SP.Folder' }, " +
+                "'ServerRelativeUrl': '" + folderPath + "'" +
+                "}";
+
+        HttpRequest request = HttpRequest.newBuilder()
+                .uri(URI.create(SHAREPOINT_API_URL + "/folders"))
+                .header("Accept", "application/json;odata=verbose")
+                .header("Content-Type", "application/json;odata=verbose")
+                .header("Authorization", "Bearer " + bearerToken)
+                .header("X-RequestDigest", formDigest)
+                .POST(HttpRequest.BodyPublishers.ofString(jsonBody))
+                .build();
+
+        httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+    }
+}
+```
+
+2. FolderCreationService class:
+
+```java
+import java.time.LocalDate;
+import java.time.format.TextStyle;
+import java.util.Locale;
+
+public class FolderCreationService {
+    private final SharePointService sharePointService;
+
+    public FolderCreationService() {
+        this.sharePointService = new SharePointService();
+    }
+
+    public void createYearMonthFolders() throws Exception {
+        LocalDate currentDate = LocalDate.now();
+        int year = currentDate.getYear();
+        String month = currentDate.getMonth().getDisplayName(TextStyle.FULL, Locale.ENGLISH);
+
+        String yearFolderPath = "/" + year;
+        String monthFolderPath = yearFolderPath + "/" + month;
+
+        sharePointService.createFolderHierarchy(yearFolderPath);
+        sharePointService.createFolderHierarchy(monthFolderPath);
+    }
+}
+```
+
+3. Updated Lambda function:
+
+```java
+import com.amazonaws.services.lambda.runtime.Context;
+import com.amazonaws.services.lambda.runtime.RequestHandler;
+import com.amazonaws.services.lambda.runtime.events.ScheduledEvent;
+
+public class SharePointFolderCreatorLambda implements RequestHandler<ScheduledEvent, Void> {
+
+    private final FolderCreationService folderCreationService;
+
+    public SharePointFolderCreatorLambda() {
+        this.folderCreationService = new FolderCreationService();
+    }
+
+    @Override
+    public Void handleRequest(ScheduledEvent input, Context context) {
+        try {
+            folderCreationService.createYearMonthFolders();
+        } catch (Exception e) {
+            context.getLogger().log("Error creating folders: " + e.getMessage());
+        }
+        return null;
+    }
+}
+```
+
+4. Updated Lambda function unit tests:
+
+```java
+import com.amazonaws.services.lambda.runtime.Context;
+import com.amazonaws.services.lambda.runtime.events.ScheduledEvent;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.mockito.Mock;
+import org.mockito.MockitoAnnotations;
+
+import static org.mockito.Mockito.*;
+
+class SharePointFolderCreatorLambdaTest {
+
+    @Mock
+    private FolderCreationService mockFolderCreationService;
+
+    @Mock
+    private Context mockContext;
+
+    private SharePointFolderCreatorLambda lambda;
+
+    @BeforeEach
+    void setUp() {
+        MockitoAnnotations.openMocks(this);
+        lambda = new SharePointFolderCreatorLambda();
+        // Use reflection to set the mockFolderCreationService
+        ReflectionTestUtils.setField(lambda, "folderCreationService", mockFolderCreationService);
+    }
+
+    @Test
+    void testSuccessfulFolderCreation() throws Exception {
+        // Arrange
+        ScheduledEvent input = new ScheduledEvent();
+
+        doNothing().when(mockFolderCreationService).createYearMonthFolders();
+
+        // Act
+        lambda.handleRequest(input, mockContext);
+
+        // Assert
+        verify(mockFolderCreationService).createYearMonthFolders();
+    }
+
+    @Test
+    void testErrorHandling() throws Exception {
+        // Arrange
+        ScheduledEvent input = new ScheduledEvent();
+
+        doThrow(new RuntimeException("Test exception")).when(mockFolderCreationService).createYearMonthFolders();
+
+        // Act
+        lambda.handleRequest(input, mockContext);
+
+        // Assert
+        verify(mockContext.getLogger()).log("Error creating folders: Test exception");
+    }
+}
+```
+
+5. Updated FolderCreationService unit tests:
+
+```java
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.mockito.Mock;
+import org.mockito.MockitoAnnotations;
+
+import java.time.LocalDate;
+import java.time.format.TextStyle;
+import java.util.Locale;
+
+import static org.mockito.Mockito.*;
+
+class FolderCreationServiceTest {
+
+    @Mock
+    private SharePointService mockSharePointService;
+
+    private FolderCreationService folderCreationService;
+
+    @BeforeEach
+    void setUp() {
+        MockitoAnnotations.openMocks(this);
+        folderCreationService = new FolderCreationService();
+        // Use reflection to set the mockSharePointService
+        ReflectionTestUtils.setField(folderCreationService, "sharePointService", mockSharePointService);
+    }
+
+    @Test
+    void testCreateYearMonthFolders() throws Exception {
+        // Arrange
+        LocalDate currentDate = LocalDate.now();
+        int year = currentDate.getYear();
+        String month = currentDate.getMonth().getDisplayName(TextStyle.FULL, Locale.ENGLISH);
+        String yearFolderPath = "/" + year;
+        String monthFolderPath = yearFolderPath + "/" + month;
+
+        doNothing().when(mockSharePointService).createFolderHierarchy(anyString());
+
+        // Act
+        folderCreationService.createYearMonthFolders();
+
+        // Assert
+        verify(mockSharePointService).createFolderHierarchy(yearFolderPath);
+        verify(mockSharePointService).createFolderHierarchy(monthFolderPath);
+    }
+
+    @Test
+    void testCreateYearMonthFoldersWithException() throws Exception {
+        // Arrange
+        doThrow(new RuntimeException("Test exception")).when(mockSharePointService).createFolderHierarchy(anyString());
+
+        // Act & Assert
+        assertThrows(RuntimeException.class, () -> folderCreationService.createYearMonthFolders());
+    }
+}
+```
+
+In this updated version:
+
+1. The `FolderCreationService` now uses the actual month name instead of the month value.
+2. The Lambda function does not require any parameters and does not send any response. It simply calls `createYearMonthFolders` on the `FolderCreationService`.
+3. The unit tests for the Lambda function and `FolderCreationService` have been updated to reflect these changes.
+
+This structure ensures that the folder creation logic is encapsulated within the `FolderCreationService`, making the Lambda function simpler and more focused on handling the request and response.
