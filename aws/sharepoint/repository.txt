@@ -1,0 +1,208 @@
+Sure! Below is a Java repository class that interacts with the SharePoint REST API using the built-in Java HTTP client and Jackson's `ObjectMapper` to perform the tasks you mentioned. I'll also provide unit tests for this repository class.
+
+### Repository Class
+
+```java
+package com.example.sharepoint;
+
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+
+import java.io.IOException;
+import java.net.URI;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.util.Base64;
+
+public class SharePointRepository {
+
+    private final HttpClient httpClient;
+    private final ObjectMapper objectMapper;
+    private final String clientId;
+    private final String clientSecret;
+    private final String tenantId;
+    private final String sharepointSiteUrl;
+
+    public SharePointRepository(String clientId, String clientSecret, String tenantId, String sharepointSiteUrl) {
+        this.httpClient = HttpClient.newHttpClient();
+        this.objectMapper = new ObjectMapper();
+        this.clientId = clientId;
+        this.clientSecret = clientSecret;
+        this.tenantId = tenantId;
+        this.sharepointSiteUrl = sharepointSiteUrl;
+    }
+
+    public String getBearerToken() throws IOException, InterruptedException {
+        String url = "https://login.microsoftonline.com/" + tenantId + "/oauth2/v2.0/token";
+        String body = "client_id=" + clientId + "&scope=https%3A%2F%2Fgraph.microsoft.com%2F.default&client_secret=" + clientSecret + "&grant_type=client_credentials";
+
+        HttpRequest request = HttpRequest.newBuilder()
+                .uri(URI.create(url))
+                .header("Content-Type", "application/x-www-form-urlencoded")
+                .POST(HttpRequest.BodyPublishers.ofString(body))
+                .build();
+
+        HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+        JsonNode jsonNode = objectMapper.readTree(response.body());
+        return jsonNode.get("access_token").asText();
+    }
+
+    public String getFormDigestValue(String bearerToken) throws IOException, InterruptedException {
+        String url = sharepointSiteUrl + "/_api/contextinfo";
+
+        HttpRequest request = HttpRequest.newBuilder()
+                .uri(URI.create(url))
+                .header("Authorization", "Bearer " + bearerToken)
+                .header("Accept", "application/json;odata=verbose")
+                .POST(HttpRequest.BodyPublishers.noBody())
+                .build();
+
+        HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+        JsonNode jsonNode = objectMapper.readTree(response.body());
+        return jsonNode.get("d").get("GetContextWebInformation").get("FormDigestValue").asText();
+    }
+
+    public boolean folderExists(String bearerToken, String parentFolderUrl, String folderName) throws IOException, InterruptedException {
+        String url = sharepointSiteUrl + "/_api/web/GetFolderByServerRelativeUrl('" + parentFolderUrl + "/" + folderName + "')";
+
+        HttpRequest request = HttpRequest.newBuilder()
+                .uri(URI.create(url))
+                .header("Authorization", "Bearer " + bearerToken)
+                .header("Accept", "application/json;odata=verbose")
+                .GET()
+                .build();
+
+        HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+        return response.statusCode() == 200;
+    }
+
+    public void createFolder(String bearerToken, String parentFolderUrl, String folderName, String formDigestValue) throws IOException, InterruptedException {
+        String url = sharepointSiteUrl + "/_api/web/folders";
+
+        String body = "{ '__metadata': { 'type': 'SP.Folder' }, 'ServerRelativeUrl': '" + parentFolderUrl + "/" + folderName + "' }";
+
+        HttpRequest request = HttpRequest.newBuilder()
+                .uri(URI.create(url))
+                .header("Authorization", "Bearer " + bearerToken)
+                .header("Accept", "application/json;odata=verbose")
+                .header("Content-Type", "application/json;odata=verbose")
+                .header("X-RequestDigest", formDigestValue)
+                .POST(HttpRequest.BodyPublishers.ofString(body))
+                .build();
+
+        httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+    }
+
+    public void uploadFile(String bearerToken, String folderUrl, String fileName, Path filePath, String formDigestValue) throws IOException, InterruptedException {
+        String url = sharepointSiteUrl + "/_api/web/GetFolderByServerRelativeUrl('" + folderUrl + "')/Files/add(url='" + fileName + "',overwrite=true)";
+
+        byte[] fileBytes = Files.readAllBytes(filePath);
+
+        HttpRequest request = HttpRequest.newBuilder()
+                .uri(URI.create(url))
+                .header("Authorization", "Bearer " + bearerToken)
+                .header("X-RequestDigest", formDigestValue)
+                .header("Accept", "application/json;odata=verbose")
+                .header("Content-Type", "application/octet-stream")
+                .POST(HttpRequest.BodyPublishers.ofByteArray(fileBytes))
+                .build();
+
+        httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+    }
+}
+```
+
+### Unit Tests
+
+```java
+package com.example.sharepoint;
+
+import com.fasterxml.jackson.databind.ObjectMapper;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.mockito.Mockito;
+
+import java.io.IOException;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
+import java.nio.file.Path;
+
+import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.*;
+
+public class SharePointRepositoryTest {
+
+    private SharePointRepository repository;
+    private HttpClient httpClient;
+    private ObjectMapper objectMapper;
+
+    @BeforeEach
+    public void setUp() {
+        httpClient = mock(HttpClient.class);
+        objectMapper = new ObjectMapper();
+        repository = new SharePointRepository("clientId", "clientSecret", "tenantId", "https://example.sharepoint.com/sites/siteName");
+    }
+
+    @Test
+    public void testGetBearerToken() throws IOException, InterruptedException {
+        HttpResponse<String> response = mock(HttpResponse.class);
+        when(response.body()).thenReturn("{\"access_token\":\"fake_token\"}");
+        when(httpClient.send(any(HttpRequest.class), any(HttpResponse.BodyHandler.class))).thenReturn(response);
+
+        String token = repository.getBearerToken();
+        assertEquals("fake_token", token);
+    }
+
+    @Test
+    public void testGetFormDigestValue() throws IOException, InterruptedException {
+        HttpResponse<String> response = mock(HttpResponse.class);
+        when(response.body()).thenReturn("{\"d\":{\"GetContextWebInformation\":{\"FormDigestValue\":\"fake_digest\"}}}");
+        when(httpClient.send(any(HttpRequest.class), any(HttpResponse.BodyHandler.class))).thenReturn(response);
+
+        String digest = repository.getFormDigestValue("fake_token");
+        assertEquals("fake_digest", digest);
+    }
+
+    @Test
+    public void testFolderExists() throws IOException, InterruptedException {
+        HttpResponse<String> response = mock(HttpResponse.class);
+        when(response.statusCode()).thenReturn(200);
+        when(httpClient.send(any(HttpRequest.class), any(HttpResponse.BodyHandler.class))).thenReturn(response);
+
+        boolean exists = repository.folderExists("fake_token", "/sites/siteName", "folderName");
+        assertTrue(exists);
+    }
+
+    @Test
+    public void testCreateFolder() throws IOException, InterruptedException {
+        HttpResponse<String> response = mock(HttpResponse.class);
+        when(httpClient.send(any(HttpRequest.class), any(HttpResponse.BodyHandler.class))).thenReturn(response);
+
+        repository.createFolder("fake_token", "/sites/siteName", "folderName", "fake_digest");
+        verify(httpClient, times(1)).send(any(HttpRequest.class), any(HttpResponse.BodyHandler.class));
+    }
+
+    @Test
+    public void testUploadFile() throws IOException, InterruptedException {
+        HttpResponse<String> response = mock(HttpResponse.class);
+        when(httpClient.send(any(HttpRequest.class), any(HttpResponse.BodyHandler.class))).thenReturn(response);
+
+        Path filePath = Path.of("test.txt");
+        repository.uploadFile("fake_token", "/sites/siteName/folderName", "test.txt", filePath, "fake_digest");
+        verify(httpClient, times(1)).send(any(HttpRequest.class), any(HttpResponse.BodyHandler.class));
+    }
+}
+```
+
+### Notes
+1. **Dependencies:** Ensure you have the necessary dependencies for `HttpClient`, `ObjectMapper`, and testing libraries like JUnit and Mockito.
+2. **Configuration:** Replace `"clientId"`, `"clientSecret"`, `"tenantId"`, and `"https://example.sharepoint.com/sites/siteName"` with your actual SharePoint and OIDC provider details.
+3. **Security:** Handle sensitive information like client secrets securely in a real-world application.
+
+This example provides a basic structure and can be extended further based on specific requirements.
