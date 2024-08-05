@@ -1,0 +1,395 @@
+import java.util.List;
+
+public class FileConfig {
+    private final String fileType;
+    private final int chunkSize;
+    private final int recordIdStart;
+    private final int recordIdEnd;
+    private final int marketValueStart;
+    private final int marketValueEnd;
+    private final int marketValueLineIndex;
+    private final List<SumPart> sumParts;
+    private final int sumLineIndex;
+
+    public FileConfig(String fileType, int chunkSize, int recordIdStart, int recordIdEnd, 
+                      int marketValueStart, int marketValueEnd, int marketValueLineIndex,
+                      List<SumPart> sumParts, int sumLineIndex) {
+        this.fileType = fileType;
+        this.chunkSize = chunkSize;
+        this.recordIdStart = recordIdStart;
+        this.recordIdEnd = recordIdEnd;
+        this.marketValueStart = marketValueStart;
+        this.marketValueEnd = marketValueEnd;
+        this.marketValueLineIndex = marketValueLineIndex;
+        this.sumParts = sumParts;
+        this.sumLineIndex = sumLineIndex;
+    }
+
+    // Getters for all fields
+
+    public static class SumPart {
+        private final int start;
+        private final int end;
+
+        public SumPart(int start, int end) {
+            this.start = start;
+            this.end = end;
+        }
+
+        public int getStart() { return start; }
+        public int getEnd() { return end; }
+    }
+}
+
+
+import org.springframework.stereotype.Service;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.List;
+
+@Service
+public class FileConfigService {
+    private final Map<String, FileConfig> configurations = new HashMap<>();
+
+    public FileConfigService() {
+        // Initialize with default configurations
+        configurations.put("TYPE1", new FileConfig("TYPE1", 4, 0, 30, 49, 70, 0,
+            List.of(
+                new FileConfig.SumPart(29, 40),
+                new FileConfig.SumPart(40, 50),
+                new FileConfig.SumPart(50, 60)
+            ), 3
+        ));
+        configurations.put("TYPE2", new FileConfig("TYPE2", 5, 0, 25, 40, 60, 1,
+            List.of(
+                new FileConfig.SumPart(25, 35),
+                new FileConfig.SumPart(35, 45),
+                new FileConfig.SumPart(45, 55),
+                new FileConfig.SumPart(55, 65)
+            ), 4
+        ));
+        // Add more configurations as needed
+    }
+
+    public FileConfig getConfig(String fileType) {
+        FileConfig config = configurations.get(fileType);
+        if (config == null) {
+            throw new IllegalArgumentException("Unsupported file type: " + fileType);
+        }
+        return config;
+    }
+}
+import org.springframework.stereotype.Service;
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.stream.Stream;
+
+@Service
+public class FileParsingService {
+
+    private final RecordRepository recordRepository;
+    private final FileConfigService fileConfigService;
+
+    public FileParsingService(RecordRepository recordRepository, FileConfigService fileConfigService) {
+        this.recordRepository = recordRepository;
+        this.fileConfigService = fileConfigService;
+    }
+
+    public void parseAndSaveFile(String filePath, String fileType) throws IOException {
+        FileConfig config = fileConfigService.getConfig(fileType);
+        List<Record> records = new ArrayList<>();
+        try (Stream<String> lines = Files.lines(Path.of(filePath))) {
+            List<String> chunk = new ArrayList<>(config.getChunkSize());
+            long[] lineCount = {0};
+
+            lines.forEach(line -> {
+                lineCount[0]++;
+                chunk.add(line);
+                if (chunk.size() == config.getChunkSize()) {
+                    records.add(processChunk(chunk, config));
+                    chunk.clear();
+                }
+            });
+
+            if (!chunk.isEmpty()) {
+                throw new IllegalStateException("File does not contain a multiple of " + config.getChunkSize() + " lines. Total lines: " + lineCount[0]);
+            }
+        }
+        recordRepository.saveAll(records);
+    }
+
+    private Record processChunk(List<String> chunk, FileConfig config) {
+        if (chunk.size() != config.getChunkSize()) {
+            throw new IllegalStateException("Chunk size is not " + config.getChunkSize() + ". Found: " + chunk.size());
+        }
+
+        String recordId = chunk.get(0).substring(config.getRecordIdStart(), config.getRecordIdEnd()).trim();
+        
+        for (int i = 1; i < config.getChunkSize(); i++) {
+            if (!chunk.get(i).substring(config.getRecordIdStart(), config.getRecordIdEnd()).trim().equals(recordId)) {
+                throw new IllegalStateException("Inconsistent recordId in chunk starting with: " + recordId);
+            }
+        }
+
+        double marketValue = Double.parseDouble(chunk.get(config.getMarketValueLineIndex())
+                .substring(config.getMarketValueStart(), config.getMarketValueEnd()).trim());
+
+        String sumLine = chunk.get(config.getSumLineIndex());
+        double sum = calculateSum(sumLine, config.getSumParts());
+
+        return new Record(recordId, marketValue, sum);
+    }
+
+    private double calculateSum(String row, List<FileConfig.SumPart> sumParts) {
+        return sumParts.stream()
+                .mapToDouble(part -> Double.parseDouble(row.substring(part.getStart(), part.getEnd()).trim()))
+                .sum();
+    }
+}
+
+import org.springframework.boot.SpringApplication;
+import org.springframework.boot.autoconfigure.SpringBootApplication;
+import org.springframework.context.ApplicationContext;
+
+@SpringBootApplication
+public class HugeFileParser {
+
+    public static void main(String[] args) {
+        ApplicationContext context = SpringApplication.run(HugeFileParser.class, args);
+        FileParsingService fileParsingService = context.getBean(FileParsingService.class);
+
+        String filePath1 = "path/to/your/huge/file1.txt";
+        String filePath2 = "path/to/your/huge/file2.txt";
+        try {
+            fileParsingService.parseAndSaveFile(filePath1, "TYPE1");
+            System.out.println("File 1 parsed and records saved successfully.");
+
+            fileParsingService.parseAndSaveFile(filePath2, "TYPE2");
+            System.out.println("File 2 parsed and records saved successfully.");
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+}
+
+
+Certainly! Let's add tests for various error cases and edge cases to ensure the robustness of the implementation. We'll cover scenarios such as incomplete chunks, inconsistent record IDs, invalid numeric values, and unsupported file types.
+
+### Updated Tests
+
+```java
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.mockito.Mock;
+import org.mockito.MockitoAnnotations;
+
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.List;
+import java.util.stream.Stream;
+
+import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.Mockito.*;
+
+class FileParsingServiceTest {
+
+    @Mock
+    private RecordRepository recordRepository;
+
+    @Mock
+    private FileConfigService fileConfigService;
+
+    private FileParsingService fileParsingService;
+
+    @BeforeEach
+    void setUp() {
+        MockitoAnnotations.openMocks(this);
+        fileParsingService = new FileParsingService(recordRepository, fileConfigService);
+
+        when(fileConfigService.getConfig("TYPE1")).thenReturn(new FileConfig("TYPE1", 4, 0, 30, 49, 70, 0,
+            List.of(
+                new FileConfig.SumPart(29, 40),
+                new FileConfig.SumPart(40, 50),
+                new FileConfig.SumPart(50, 60)
+            ), 3
+        ));
+        when(fileConfigService.getConfig("TYPE2")).thenReturn(new FileConfig("TYPE2", 5, 0, 25, 40, 60, 1,
+            List.of(
+                new FileConfig.SumPart(25, 35),
+                new FileConfig.SumPart(35, 45),
+                new FileConfig.SumPart(45, 55),
+                new FileConfig.SumPart(55, 65)
+            ), 4
+        ));
+    }
+
+    @Test
+    void testParseAndSaveFileType1() throws IOException {
+        String filePath = "path/to/your/huge/file1.txt";
+        
+        Stream<String> lines = Stream.of(
+                "recordId1                            some data here 12345678901234567890",
+                "recordId1                            some data here",
+                "recordId1                            some data here",
+                "recordId1                            1234567890 1234567890 1234567890"
+        );
+        try (var mocked = mockStatic(Files.class)) {
+            mocked.when(() -> Files.lines(Path.of(filePath))).thenReturn(lines);
+
+            fileParsingService.parseAndSaveFile(filePath, "TYPE1");
+
+            verify(recordRepository, times(1)).saveAll(argThat(records -> {
+                assertEquals(1, records.size());
+                Record record = records.get(0);
+                assertEquals("recordId1", record.recordId());
+                assertEquals(12345678901234567890.0, record.marketValue());
+                assertEquals(3703703700.0, record.sum());
+                return true;
+            }));
+        }
+    }
+
+    @Test
+    void testParseAndSaveFileType2() throws IOException {
+        String filePath = "path/to/your/huge/file2.txt";
+        
+        Stream<String> lines = Stream.of(
+                "recordId2               some data",
+                "recordId2               9876543210987654",
+                "recordId2               some data",
+                "recordId2               some data",
+                "recordId2               1234567890 1234567890 1234567890 1234567890"
+        );
+        try (var mocked = mockStatic(Files.class)) {
+            mocked.when(() -> Files.lines(Path.of(filePath))).thenReturn(lines);
+
+            fileParsingService.parseAndSaveFile(filePath, "TYPE2");
+
+            verify(recordRepository, times(1)).saveAll(argThat(records -> {
+                assertEquals(1, records.size());
+                Record record = records.get(0);
+                assertEquals("recordId2", record.recordId());
+                assertEquals(9876543210987654.0, record.marketValue());
+                assertEquals(4938271600.0, record.sum());  // Sum of 4 parts
+                return true;
+            }));
+        }
+    }
+
+    @Test
+    void testIncompleteChunkThrowsException() throws IOException {
+        String filePath = "path/to/your/huge/file1.txt";
+        
+        Stream<String> lines = Stream.of(
+                "recordId1                            some data here 12345678901234567890",
+                "recordId1                            some data here",
+                "recordId1                            some data here"
+        );
+        try (var mocked = mockStatic(Files.class)) {
+            mocked.when(() -> Files.lines(Path.of(filePath))).thenReturn(lines);
+
+            IllegalStateException exception = assertThrows(IllegalStateException.class, () -> {
+                fileParsingService.parseAndSaveFile(filePath, "TYPE1");
+            });
+
+            assertEquals("File does not contain a multiple of 4 lines. Total lines: 3", exception.getMessage());
+            verify(recordRepository, never()).saveAll(any());
+        }
+    }
+
+    @Test
+    void testInconsistentRecordIdThrowsException() throws IOException {
+        String filePath = "path/to/your/huge/file1.txt";
+        
+        Stream<String> lines = Stream.of(
+                "recordId1                            some data here 12345678901234567890",
+                "recordId1                            some data here",
+                "recordId1                            some data here",
+                "recordId2                            1234567890 1234567890 1234567890"
+        );
+        try (var mocked = mockStatic(Files.class)) {
+            mocked.when(() -> Files.lines(Path.of(filePath))).thenReturn(lines);
+
+            IllegalStateException exception = assertThrows(IllegalStateException.class, () -> {
+                fileParsingService.parseAndSaveFile(filePath, "TYPE1");
+            });
+
+            assertEquals("Inconsistent recordId in chunk starting with: recordId1", exception.getMessage());
+            verify(recordRepository, never()).saveAll(any());
+        }
+    }
+
+    @Test
+    void testInvalidMarketValueThrowsException() throws IOException {
+        String filePath = "path/to/your/huge/file1.txt";
+        
+        Stream<String> lines = Stream.of(
+                "recordId1                            some data here invalid_value",
+                "recordId1                            some data here",
+                "recordId1                            some data here",
+                "recordId1                            1234567890 1234567890 1234567890"
+        );
+        try (var mocked = mockStatic(Files.class)) {
+            mocked.when(() -> Files.lines(Path.of(filePath))).thenReturn(lines);
+
+            NumberFormatException exception = assertThrows(NumberFormatException.class, () -> {
+                fileParsingService.parseAndSaveFile(filePath, "TYPE1");
+            });
+
+            assertTrue(exception.getMessage().contains("For input string: \"invalid_value\""));
+            verify(recordRepository, never()).saveAll(any());
+        }
+    }
+
+    @Test
+    void testInvalidSumPartThrowsException() throws IOException {
+        String filePath = "path/to/your/huge/file1.txt";
+        
+        Stream<String> lines = Stream.of(
+                "recordId1                            some data here 12345678901234567890",
+                "recordId1                            some data here",
+                "recordId1                            some data here",
+                "recordId1                            invalid_value 1234567890 1234567890"
+        );
+        try (var mocked = mockStatic(Files.class)) {
+            mocked.when(() -> Files.lines(Path.of(filePath))).thenReturn(lines);
+
+            NumberFormatException exception = assertThrows(NumberFormatException.class, () -> {
+                fileParsingService.parseAndSaveFile(filePath, "TYPE1");
+            });
+
+            assertTrue(exception.getMessage().contains("For input string: \"invalid_value\""));
+            verify(recordRepository, never()).saveAll(any());
+        }
+    }
+
+    @Test
+    void testUnsupportedFileTypeThrowsException() {
+        String filePath = "path/to/your/huge/file3.txt";
+        
+        IllegalArgumentException exception = assertThrows(IllegalArgumentException.class, () -> {
+            fileParsingService.parseAndSaveFile(filePath, "UNSUPPORTED_TYPE");
+        });
+
+        assertEquals("Unsupported file type: UNSUPPORTED_TYPE", exception.getMessage());
+    }
+
+    // Add more tests for edge cases as needed
+}
+```
+
+### Summary of Tests
+
+1. **testParseAndSaveFileType1**: Tests parsing and saving for `TYPE1` configuration.
+2. **testParseAndSaveFileType2**: Tests parsing and saving for `TYPE2` configuration.
+3. **testIncompleteChunkThrowsException**: Tests that an exception is thrown for incomplete chunks.
+4. **testInconsistentRecordIdThrowsException**: Tests that an exception is thrown for inconsistent record IDs within a chunk.
+5. **testInvalidMarketValueThrowsException**: Tests that an exception is thrown for invalid market value.
+6. **testInvalidSumPartThrowsException**: Tests that an exception is thrown for invalid sum part values.
+7. **testUnsupportedFileTypeThrowsException**: Tests that an exception is thrown for unsupported file types.
+
+These tests cover various error cases and edge cases to ensure the robustness of the implementation. You can add more tests as needed to cover additional scenarios.
