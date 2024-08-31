@@ -1,0 +1,94 @@
+
+
+${...} Variable expressions
+${VariableName}
+
+Selection Expressions: just like variable expressions but executed on previously selected object
+
+Define th:object attribute
+
+<div th:object="${user}">
+    <p>Name: <string th:text="*{name}"/></p>
+
+Message Expressions:
+Lets you externalize common texts into a properties file
+Syntax: #{message.property.key}
+
+Link Expressions:
+are meant to build URLs in a thymeleaf templates.
+Syntax: @{link}
+used commonly in <link>, <a>
+<link th:href="@{/css/demo.css}" ...
+<a th:href="@{/message/{id}(id=${id})}" ....
+
+Fragment Expressions:
+are easy way to represent fragments of markup and move them around templates.
+Syntax: ~{fragment name}
+Three basic ways to include content from fragment
+1. th:insert - inserts content inside the tag
+2. th:replace - replaces the currrent tag with the tag defining the fragment
+3. th:include - this is deprecated but it may still appear in legacy code.
+
+th:text attribute:
+<p th:text="${message}">
+
+th:each attribute
+example:
+<tr th:each="user: ${users}">
+    <td th:text="${user.name}"></td>
+
+Status variable
+<tr th:each="user, status : ${users}">
+    ${status.count}
+
+    check the properties of status variable
+
+th:if and th:unless
+
+<div th:if="${condition}">
+
+<div th:unless="${condition}">
+
+<a th:if="${user.role} == 'ADMIN'"> Update</a>
+<a th:unless=${user.role} == 'ADMIN'">View</a>
+
+
+th:switch, th:case
+
+<div th:switch="${user.role}">
+    <p th:case="'ADMIN'">Admin user</p>
+    <p th:case="*">User is some other thing</p>
+</div>
+
+
+FORM HANDLING:
+
+th:action - replaces the action of the form
+th:object - used to bind the fields of the form to an model object
+th:field  -
+
+<form action="#" th:action="@{/register/save}" method="post" th:object="${userForm}">
+
+    <input type="text" th:field="*{name}" /> </br>
+    <input type="radio" th:field="*{gender}" value="Male" />Male
+    <input type="radio" th:field="*{gender}" value="Female" />Female
+
+    <select th:field="*{profession}">
+        <option th:each="p : ${listProfession}" th:value="${p}" th:text="${p}" />
+    </select>
+
+    <textarea rows="5" cols="25" th:field="*{address}"></textarea>
+
+    <button type="submit">Register</button>
+</form>
+
+
+Handler method
+register/save
+@PostMapping
+submitForm(Model model, @ModelAttribute("userForm") UserForm userForm) {
+
+    model.addAttribute("userForm", userForm);
+    return "register-success";
+}
+
