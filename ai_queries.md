@@ -73,3 +73,69 @@ sequenceDiagram
 ```
 
 ---
+
+@startuml
+actor User
+participant Browser
+participant AngularApp
+participant PingIdentity
+participant AuthServer
+participant API
+
+User -> Browser : Navigate to Angular App
+activate Browser
+
+Browser -> AngularApp : Load App
+activate AngularApp
+
+AngularApp -> AngularApp : Check Authentication
+
+alt User is Authenticated
+    AngularApp -> API : Make API Calls
+    activate API
+    API --> AngularApp : API Response
+    deactivate API
+else User is Not Authenticated
+    AngularApp -> PingIdentity : Initiate OIDC Flow (client_id, redirect_uri, etc.)
+    activate PingIdentity
+    PingIdentity -> Browser : Attempt to Authenticate with Browser User
+    
+    alt Browser User Authentication Successful
+        PingIdentity --> AngularApp : Redirect to redirect_uri with Authorization Code
+    else Browser User Authentication Failed
+        PingIdentity -> Browser : Present Login Interface
+        User -> Browser : Enter Credentials
+        Browser -> PingIdentity : Submit Credentials
+        
+        alt Credentials Valid
+            PingIdentity --> AngularApp : Redirect to redirect_uri with Authorization Code
+        else Credentials Invalid
+            PingIdentity -> Browser : Show Error Message
+        end
+    end
+    deactivate PingIdentity
+
+    note over PingIdentity, AngularApp : Authorization Code passed in query string
+
+    AngularApp -> AuthServer : POST to login endpoint (authorization_code, client_id, etc.)
+    activate AuthServer
+    AuthServer --> AngularApp : Return Auth Token
+    deactivate AuthServer
+
+    AngularApp -> AuthServer : POST to ACL endpoint with Auth Token
+    activate AuthServer
+    AuthServer --> AngularApp : Return Entitlements and Info in Response Headers
+    deactivate AuthServer
+
+    AngularApp -> AngularApp : Continue loading UI
+    AngularApp -> API : Make API calls with Auth Token and Response Header Info
+    activate API
+    API --> AngularApp : API Response
+    deactivate API
+end
+
+deactivate AngularApp
+deactivate Browser
+@enduml
+
+---
