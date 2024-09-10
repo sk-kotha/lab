@@ -1,4 +1,3 @@
-Certainly! Moving the substring indices to constants improves code readability and maintainability. Here's the updated code with constants for the substring positions:
 
 ### Constants
 
