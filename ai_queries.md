@@ -139,3 +139,26 @@ deactivate Browser
 @enduml
 
 ---
+
+
+i need a mermaidjs flow for the process flow below
+
+1. Create Install Story
+2. Add all the required sub-tasks on the install story and assign all the sub-tasks to corresponding assignees. All the qa, test plan/execution tasks are assigned to the developer who owns the 'Testing' CTask of the corresponding CM Ticket
+3. Create CM ticket with all required CTasks and assign all Ctasks to corresponding associates.
+# In the case where 2 different teams are performing implementation as part of the same XX Ticket (for ex: CM23456), then it is required to create 2 'Implementation' Ctasks.
+# In the case where some other external team performs the implementation and our team need to validate, then we need to assign the Implementation CTask to external team and 'Testing' and 'Validation' task to someone from our team (for ex: CM2345).
+4. Create the install plan excel sheet and attach it to the CM ticket. Also attach the same excel sheet in the below sharepoint site. <sp_url>.
+5. Get the CM ticket internally reviewed with someone in the team.
+6. Submit the CM ticket for approvals.
+7. Co-ordinate with squad lead and provide all details about the CM ticket so that the squad lead could fill the form in the below sharepoint site <url>.
+8. Attend 'XXX-Rev(change)' meeting (on <day>) in which the high-level detail of the change is demonstrated to <person_name>.
+9. Coordinate with the owner of the 'Testing' ctask and ensure that 'Testing' ctask is closed.
+10. Ensure that the CM ticket is 'Audit compliant' at this stage. we can check the audit compliant at <url>.
+11. Contact someone from the 'Assignment Group' and ensure that we get approvals on the CM ticket, the install plan etc. After this meeting, ensure that someone from A4 team (who belongs to <add_here> group) approves the CM ticket. IF any correction is suggested by the A4 team in the '<add_here>' weekly meeting, make that change and get their approval by chatting with them in the '<add_here>' teams group chat. Note: One/two days before attending to this meeting, post a message in '<add_here>' teams chat asking A4 team to review this change so that we can make any corrections before the meeting.
+12. Promote the docker image or maven jar to 'docker-releases-local' or 'maven-releases-local' respectively one or two days before the prod install. Here is the document to promote changes <link_here>.
+13. Complete the prod install on the day of the install and ensure that corresponding owners of the ctask will close their ctasks during the install.
+14. Owner of the CM ticket should ensure that the entire CM ticket is also closed at the end of the install. The CM ticket needs to be closed within 24 hours of the install window.
+15. Close the install story after the completion of the prod install.
+
+
