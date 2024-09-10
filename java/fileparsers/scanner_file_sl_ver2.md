@@ -1,6 +1,4 @@
-Certainly! I'll provide you with a Java program that meets your requirements. This program will use Java 11 or higher features, including records. I'll create a service class for the main logic, use constants for substring positions, and include unit tests.
 
-Here's the complete program structure:
 
 ```java
 // File: CusipRecord.java
