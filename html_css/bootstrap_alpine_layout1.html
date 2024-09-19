@@ -4,8 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Layout</title>
-    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
-    <script src="https://cdn.jsdelivr.net/gh/alpinejs/alpine@v2.x.x/dist/alpine.min.js" defer></script>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@4.6.0/dist/css/bootstrap.min.css">
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
     <style>
         .sidebar {
             width: 250px;
@@ -15,6 +15,7 @@
             bottom: 0;
             transition: 0.3s;
             overflow-y: auto;
+            z-index: 1000;
         }
         .sidebar.open {
             left: 0;
@@ -46,7 +47,7 @@
                 <li class="nav-item">
                     <a class="nav-link" href="#">Home</a>
                 </li>
-                <li class="nav-item dropdown" x-data="{ open: false }">
+                <li class="nav-item" x-data="{ open: false }">
                     <a class="nav-link dropdown-toggle" href="#" @click="open = !open">Products</a>
                     <div class="dropdown-menu" :class="{ 'show': open }" @click.away="open = false">
                         <a class="dropdown-item" href="#">Category 1</a>
@@ -68,14 +69,14 @@
         <ul class="nav flex-column">
             <li class="nav-item" x-data="{ open: false }">
                 <a class="nav-link" href="#" @click="open = !open">Menu 1</a>
-                <ul class="nav flex-column ml-3" x-show="open">
+                <ul class="nav flex-column ml-3" x-show="open" x-transition>
                     <li class="nav-item"><a class="nav-link" href="#">Submenu 1.1</a></li>
                     <li class="nav-item"><a class="nav-link" href="#">Submenu 1.2</a></li>
                 </ul>
             </li>
             <li class="nav-item" x-data="{ open: false }">
                 <a class="nav-link" href="#" @click="open = !open">Menu 2</a>
-                <ul class="nav flex-column ml-3" x-show="open">
+                <ul class="nav flex-column ml-3" x-show="open" x-transition>
                     <li class="nav-item"><a class="nav-link" href="#">Submenu 2.1</a></li>
                     <li class="nav-item"><a class="nav-link" href="#">Submenu 2.2</a></li>
                 </ul>
