@@ -13,6 +13,7 @@ we can see another 3 differences from what we are used to:
 * app.routes.ts file instead of app.routing.module.ts: this is again because we chose standalone
 * app.config.ts file: this file will contain global configurations for our app, like providers, routing initialization, and more
 
+```typescript
 import { Component } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { RouterOutlet } from '@angular/router';
@@ -27,15 +28,19 @@ import { RouterOutlet } from '@angular/router';
 export class AppComponent {
   title = 'hrms';
 }
+```
 
 * standalone: true marks this component as standalone and not belonging to any NgModule
 * The imports array is used to import its dependencies (like other modules and standalone components/directives/pipes), as this component is standalone and does not rely on an NgModule to locate its dependencies, and instead imports them directly. Note that in v16 it imports CommonModule, to be able to use built-in directives and pipes, but those things are now also standalone and can be imported directly, i.e. we can write NgIf in the imports array and import only itself instead of bringing the entire CommonModule. In v17+, CommonModule is not imported by default at all.
 
+```typescript
 import { Routes } from '@angular/router';
 export const routes: Routes = [];
+```
 
 We can see that it is also simpler, as it does not use the RouterModule to register routes. Instead, those routes are only defined here and registered in the app.config.ts file
 
+```typescript
 import { ApplicationConfig } from '@angular/core';
 import { provideRouter } from '@angular/router';
  
@@ -44,18 +49,21 @@ import { routes } from './app.routes';
 export const appConfig: ApplicationConfig = {
   providers: [provideRouter(routes)]
 };
+```
 
 Again, two important things to note here:
 * The ApplicationConfig interface has one property, providers, which is used to provide dependency injection tokens, as we did in NgModule-s previously with the property that shared the same name
 * Routes are registered with a special new function called provideRouter, which also accepts an array of our route definitions, instead of RouterModule.forRoot(routes)
 Now it seems we have reviewed all of our files, because, as mentioned previously, we do not have an “app.module.ts” file in a standalone setup. So if we do not have that file, how is our application being initialized and bootstrapped? Well, this logic fully moved to the main.ts file:
 
+```typescript
 import { bootstrapApplication } from '@angular/platform-browser';
 import { appConfig } from './app/app.config';
 import { AppComponent } from './app/app.component';
  
 bootstrapApplication(AppComponent, appConfig)
   .catch((err) => console.error(err));
+```
 
 As we can see, main.ts now uses a special bootstrapApplication function, instead of the previous platformBrowserDynamic().bootstrapModule(AppModule), and directly bootstraps the AppComponent instead of an AppModule. In modern Angular apps, we do not need an NgModule, and this new function can directly create our application using one root component and the application configuration.
 
