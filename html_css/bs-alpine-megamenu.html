@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bootstrap 4 and Alpine.js 3 Mega Menu</title>
+
+    <!-- Bootstrap 4 CSS -->
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
+
+    <!-- Bootstrap Icons CSS -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.7.2/font/bootstrap-icons.css">
+
+    <!-- Alpine.js 3 -->
+    <script src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js" defer></script>
+
+    <style>
+        .mega-menu {
+            position: absolute;
+            padding: 30px;
+            background-color: #f8f9fa;
+            border: 1px solid #e9ecef;
+            border-radius: 4px;
+            box-shadow: 0 6px 12px rgba(0, 0, 0, .175);
+            z-index: 1000;
+            min-width: 700px;
+            max-width: 900px;
+        }
+
+        .nav-item-mega {
+            position: relative;
+        }
+
+        .dropdown-icon {
+            transition: transform 0.3s ease;
+        }
+
+        .dropdown-icon.open {
+            transform: rotate(180deg);
+        }
+
+        .mega-menu-header {
+            font-weight: bold;
+            border-bottom: 2px solid;
+            padding-bottom: 10px;
+            margin-bottom: 15px;
+        }
+
+        .mega-menu-header:nth-child(4n+1) {
+            color: #007bff;
+            border-bottom-color: #007bff;
+        }
+
+        .mega-menu-header:nth-child(4n+2) {
+            color: #28a745;
+            border-bottom-color: #28a745;
+        }
+
+        .mega-menu-header:nth-child(4n+3) {
+            color: #dc3545;
+            border-bottom-color: #dc3545;
+        }
+
+        .mega-menu-header:nth-child(4n+4) {
+            color: #ffc107;
+            border-bottom-color: #ffc107;
+        }
+
+        .mega-menu-divider {
+            margin: 30px 0;
+            border-top: 1px solid #e9ecef;
+        }
+
+        .mega-menu ul li {
+            margin-bottom: 10px;
+        }
+
+        .mega-menu ul li a {
+            color: #333;
+            text-decoration: none;
+            transition: color 0.3s ease;
+        }
+
+        .mega-menu ul li a:hover {
+            color: #007bff;
+        }
+
+        .mega-menu-column {
+            padding: 0 20px;
+            border-right: 1px solid #e9ecef;
+        }
+
+        .mega-menu-column:last-child {
+            border-right: none;
+        }
+
+        @media (max-width: 991.98px) {
+            .mega-menu {
+                position: static;
+                width: 100%;
+                max-width: none;
+            }
+
+            .mega-menu-column {
+                border-right: none;
+                border-bottom: 1px solid #e9ecef;
+                padding-bottom: 20px;
+                margin-bottom: 20px;
+            }
+
+            .mega-menu-column:last-child {
+                border-bottom: none;
+            }
+        }
+    </style>
+</head>
+
+<body>
+
+    <nav class="navbar navbar-expand-lg navbar-light bg-light">
+        <div class="container-fluid">
+            <a class="navbar-brand" href="#">Brand</a>
+            <button class="navbar-toggler" type="button" data-toggle="collapse" data-target="#navbarContent"
+                aria-controls="navbarContent" aria-expanded="false" aria-label="Toggle navigation">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+
+            <div class="collapse navbar-collapse" id="navbarContent">
+                <ul class="navbar-nav mr-auto">
+                    <li class="nav-item">
+                        <a class="nav-link" href="#">Home</a>
+                    </li>
+                    <li class="nav-item nav-item-mega" x-data="{ megaMenuOpen: false }">
+                        <a class="nav-link d-flex align-items-center" href="#"
+                            @click.prevent="megaMenuOpen = !megaMenuOpen">
+                            <i class="bi bi-grid-3x3-gap-fill mr-1"></i> Mega Menu
+                            <i class="bi bi-chevron-down ml-1 dropdown-icon" :class="{ 'open': megaMenuOpen }"></i>
+                        </a>
+                        <div class="mega-menu" x-show="megaMenuOpen" x-transition @click.away="megaMenuOpen = false">
+                            <div class="row">
+                                <div class="col-md-3 mega-menu-column">
+                                    <h5 class="mega-menu-header">Category 1</h5>
+                                    <ul class="list-unstyled">
+                                        <li><a href="#">Link 1</a></li>
+                                        <li><a href="#">Link 2</a></li>
+                                        <li><a href="#">Link 3</a></li>
+                                    </ul>
+                                </div>
+                                <div class="col-md-3 mega-menu-column">
+                                    <h5 class="mega-menu-header">Category 2</h5>
+                                    <ul class="list-unstyled">
+                                        <li><a href="#">Link 4</a></li>
+                                        <li><a href="#">Link 5</a></li>
+                                        <li><a href="#">Link 6</a></li>
+                                    </ul>
+                                </div>
+                                <div class="col-md-3 mega-menu-column">
+                                    <h5 class="mega-menu-header">Category 3</h5>
+                                    <ul class="list-unstyled">
+                                        <li><a href="#">Link 7</a></li>
+                                        <li><a href="#">Link 8</a></li>
+                                        <li><a href="#">Link 9</a></li>
+                                    </ul>
+                                </div>
+                                <div class="col-md-3 mega-menu-column">
+                                    <h5 class="mega-menu-header">Category 4</h5>
+                                    <ul class="list-unstyled">
+                                        <li><a href="#">Link 10</a></li>
+                                        <li><a href="#">Link 11</a></li>
+                                        <li><a href="#">Link 12</a></li>
+                                    </ul>
+                                </div>
+                            </div>
+                            <hr class="mega-menu-divider">
+                            <div class="row">
+                                <div class="col-md-3 mega-menu-column">
+                                    <h5 class="mega-menu-header">Category 5</h5>
+                                    <ul class="list-unstyled">
+                                        <li><a href="#">Link 13</a></li>
+                                        <li><a href="#">Link 14</a></li>
+                                        <li><a href="#">Link 15</a></li>
+                                    </ul>
+                                </div>
+                                <div class="col-md-3 mega-menu-column">
+                                    <h5 class="mega-menu-header">Category 6</h5>
+                                    <ul class="list-unstyled">
+                                        <li><a href="#">Link 16</a></li>
+                                        <li><a href="#">Link 17</a></li>
+                                        <li><a href="#">Link 18</a></li>
+                                    </ul>
+                                </div>
+                                <div class="col-md-3 mega-menu-column">
+                                    <h5 class="mega-menu-header">Category 7</h5>
+                                    <ul class="list-unstyled">
+                                        <li><a href="#">Link 19</a></li>
+                                        <li><a href="#">Link 20</a></li>
+                                        <li><a href="#">Link 21</a></li>
+                                    </ul>
+                                </div>
+                                <div class="col-md-3 mega-menu-column">
+                                    <h5 class="mega-menu-header">Category 8</h5>
+                                    <ul class="list-unstyled">
+                                        <li><a href="#">Link 22</a></li>
+                                        <li><a href="#">Link 23</a></li>
+                                        <li><a href="#">Link 24</a></li>
+                                    </ul>
+                                </div>
+                            </div>
+                        </div>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="#">About</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="#">Contact</a>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container mt-4">
+        <h1>Welcome to the Bootstrap 4 and Alpine.js 3 Mega Menu Demo</h1>
+        <p>Click on the "Mega Menu" link in the navigation bar to see the mega menu in action.</p>
+    </div>
+
+</body>
+
+</html>
